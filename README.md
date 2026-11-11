@@ -1,113 +1,78 @@
-# Traceable Evidence Enhanced Visual Grounded Reasoning: Evaluation and Methodology
+# TreeVGR 评测复现
 
-<p align="center">
-  <a href="https://arxiv.org/abs/2507.07999">
-    <img src="https://img.shields.io/badge/arXiv-Tech Report-red"></a>
-  <a href="https://huggingface.co/datasets/HaochenWang/TreeBench">
-    <img src="https://img.shields.io/badge/TreeBench-HuggingFace-orange"></a>
-  <a href="https://huggingface.co/HaochenWang/TreeVGR-7B">
-    <img src="https://img.shields.io/badge/TreeVGR-HuggingFace-yellow"></a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/License-Apache2.0-blue"></a>
-</p>
+本仓库基于 [作者源码](https://github.com/Haochen-Wang409/TreeVGR)，复现论文表 2、表 3 中 Qwen2.5-VL-7B-Instruct 与 TreeVGR-7B 的结果。
 
-**TL; DR**: We propose TreeBench, the first benchmark specially designed for evaluating "thinking with images" capabilities with *traceable visual evidence*, and TreeVGR, the current state-of-the-art open-source visual grounded reasoning models.
+## 原作者示例与论文的差异
 
-> **Abstract.** Models like OpenAI-o3 pioneer visual grounded reasoning by dynamically referencing visual regions,
-> just like human "thinking with images". However, no benchmark exists to evaluate these capabilities
-> holistically. To bridge this gap, we propose **TreeBench** (Traceable Evidence Evaluation Benchmark),
-> a diagnostic benchmark built on three principles: (1) focused visual perception of subtle targets in
-> complex scenes, (2) traceable evidence via bounding box evaluation, and (3) second-order reasoning
-> to test object interactions and spatial hierarchies beyond simple object localization. Prioritizing
-> images with dense objects, we initially sample 1K high-quality images from SA-1B, and incorporate
-> eight LMM experts to manually annotate questions, candidate options, and answers for each
-> image. After three stages of quality control, **TreeBench** consists of 405 challenging visual question-
-> answering pairs, even the most advanced models struggle with this benchmark, where none of
-> them reach 60% accuracy, e.g., OpenAI-o3 scores only 54.87. Furthermore, we introduce **TreeVGR**
-> (Traceable Evidence Enhanced Visual Grounded Reasoning), a training paradigm to supervise
-> localization and reasoning jointly with reinforcement learning, enabling accurate localizations and
-> explainable reasoning pathways. Initialized from Qwen2.5-VL-7B, it improves V* Bench (+16.8),
-> MME-RealWorld (+12.6), and TreeBench (+13.4), proving traceability is key to advancing visual
-> grounded reasoning.
+作者已在原 README 中说明：inference_treebench.py 的结果与论文略有差异，论文主要使用 VLMEvalKit 评测。原示例的 TreeBench 准确率为 49.38%、mIoU 为 43.3；论文表 2 为 50.4%、44.0。
 
-![](./assets/treebench.png)
+本仓库新增的 evaluation 脚本使用 VLMEvalKit 的模型配置、提示词、图像处理和评分实现，对照论文表 2、表 3。原示例保留在根目录。
 
-## Release
+## 复现范围
 
-- [2026/01/26] 🔥🔥🔥 **TreeBench** and **TreeVGR** have been accepted by **ICLR 2026**! 🔥🔥🔥
-- [2025/08/12] 🔥 **TreeBench** has been utilized by **GLM-4.5V**!
-- [2025/07/12] 🔥🔥🔥 **TreeBench** and **TreeVGR** have been supported by [**VLMEvalKit**](https://github.com/open-compass/VLMEvalKit)! 🔥🔥🔥
-- [2025/07/11] 🔥 **TreeBench** and **TreeVGR** have been released. Check out the [paper](https://arxiv.org/pdf/TBD) for details.
+模型权重：Qwen/Qwen2.5-VL-7B-Instruct、HaochenWang/TreeVGR-7B。
 
+| 测试集 | 基座总分 | TreeVGR 总分 | 同时统计 |
+| --- | ---: | ---: | --- |
+| TreeBench | 37.0 | 50.4 | 10 类准确率，TreeVGR mIoU 44.0 |
+| V* Bench | 74.3 | 91.1 | 属性、空间关系 |
+| HR-Bench-4K | 72.1 | 77.1 | Single、Cross |
+| HR-Bench-8K | 68.8 | 73.1 | Single、Cross |
 
-## Installation
+完整参考分数位于 evaluation/protocol.json。V* 和 HR-Bench 使用公开的 exact_matching 评分路径。
 
-```bash
-pip3 install -r requirements.txt
-pip3 install flash-attn --no-build-isolation -v
-```
+## 服务器快速运行
 
-## Usage
+在已配置 CUDA 的 Python 环境中，从仓库根目录执行：
 
-This repo provides a simple local inference demo of our TreeVGR on TreeBench. First, clone this repo,
-```bash
-git clone https://github.com/Haochen-Wang409/TreeVGR
-cd TreeVGR
-```
-and then, simply run inference_treebench.py
-```bash
-python3 inference_treebench.py
-```
+~~~bash
+python evaluation/prepare_toolkit.py
+pip install -e evaluation/vendor/VLMEvalKit
+pip install -r evaluation/requirements.txt
+pip install flash-attn --no-build-isolation
 
-This should give:
-```
-Perception/Attributes 18/29=62.07
-Perception/Material 7/13=53.85
-Perception/Physical State 19/23=82.61
-Perception/Object Retrieval 10/16=62.5
-Perception/OCR 42/68=61.76
-Reasoning/Perspective Transform 19/85=22.35
-Reasoning/Ordering 20/57=35.09
-Reasoning/Contact and Occlusion 25/41=60.98
-Reasoning/Spatial Containment 20/29=68.97
-Reasoning/Comparison 20/44=45.45
-==> Overall 200/405=49.38
-==> Mean IoU: 43.3
-```
-This result is slightly different from the paper, as we mainly utlized [**VLMEvalKit**](https://github.com/open-compass/VLMEvalKit) for a more comprehensive evaluation.
+CUDA_VISIBLE_DEVICES=0 python evaluation/run.py
+python evaluation/summarize.py
+~~~
 
-**Benchmark**
-- TreeBench: https://huggingface.co/datasets/HaochenWang/TreeBench
+默认依次运行两个模型在四个测试集上的评测；权重和数据自动下载，结果保存到 evaluation/outputs。准备脚本首次获取指定版本 VLMEvalKit，已有目录直接复用。
 
-**Checkpoints**
-- TreeVGR-7B: https://huggingface.co/HaochenWang/TreeVGR-7B
-- TreeVGR-7B-CI: https://huggingface.co/HaochenWang/TreeVGR-7B-CI
+按测试集运行：
 
-**Training Datasets**
-- TreeVGR-RL-37K: https://huggingface.co/datasets/HaochenWang/TreeVGR-RL-37K
-- TreeVGR-SFT-35K: https://huggingface.co/datasets/HaochenWang/TreeVGR-SFT-35K
+~~~bash
+python evaluation/eval_treebench.py
+python evaluation/eval_vstar.py
+python evaluation/eval_hrbench_4k.py
+python evaluation/eval_hrbench_8k.py
+~~~
 
-## Citation
+常用参数：
 
-If you find Ross useful for your research and applications, please cite using this BibTeX:
-```bibtex
-@article{wang2025traceable,
-  title={Traceable Evidence Enhanced Visual Grounded Reasoning: Evaluation and Methodology},
-  author={Haochen Wang and Xiangtai Li and Zilong Huang and Anran Wang and Jiacong Wang and Tao Zhang and Jiani Zheng and Sule Bai and Zijian Kang and Jiashi Feng and Zhuochen Wang and Zhaoxiang Zhang},
-  journal={arXiv preprint arXiv:2507.07999},
-  year={2025}
-}
-```
+| 参数 | 用途 |
+| --- | --- |
+| --model base / treevgr | 只评测一个模型，默认两个都跑 |
+| --model-path /models/TreeVGR-7B | 指定本地权重，配合 --model 使用 |
+| --data-root /data/LMUData | 指定数据缓存目录 |
+| --output /data/results | 指定结果目录 |
+| --mode infer / eval | 只推理 / 用已有预测重新评分，默认两步连续执行 |
+| --limit 10 | 只跑前 10 条，结果另存到 smoke 目录；小样本推理可搭配 --mode infer |
 
-## Acknowledgement
-We would like to express our sincere appreciation to the following projects:
-- [Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL): The base model we utilzed.
-- [VGR](https://huggingface.co/datasets/BytedanceDouyinContent/VGR): The source of our SFT dataset.
-- [V*](https://github.com/penghao-wu/vstar) and [VisDrone](https://github.com/VisDrone/VisDrone-Dataset): The image source of our RL dataset.
-- [SA-1B](https://ai.meta.com/datasets/segment-anything/): The image source of our TreeBench.
-- [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory): The SFT codebase we utilized.
-- [EasyR1](https://github.com/hiyouga/EasyR1): The RL codebase we utilized.
+中断后重跑同一命令会继续已有记录。更换权重或评测设置时，使用新的 --output 目录。
 
-## Table 2 / Table 3 reproduction
+## 新增脚本
 
-For Qwen2.5-VL-7B-Instruct versus TreeVGR-7B on TreeBench, VStarBench, HRBench4K and HRBench8K, see [the evaluation guide](evaluation/README.zh-CN.md). The scripts use pinned VLMEvalKit adapters, save resumable per-sample outputs, and compare scores with the paper.
+| 文件 | 用途 |
+| --- | --- |
+| evaluation/prepare_toolkit.py | 获取 VLMEvalKit |
+| evaluation/run.py | 通用入口，调度模型与测试集，保存预测并调用官方评分 |
+| evaluation/eval_treebench.py | TreeBench 入口 |
+| evaluation/eval_vstar.py | V* Bench 入口 |
+| evaluation/eval_hrbench_4k.py | HR-Bench-4K 入口 |
+| evaluation/eval_hrbench_8k.py | HR-Bench-8K 入口 |
+| evaluation/summarize.py | 汇总论文分数、实测分数、偏差和模型提升幅度 |
+| evaluation/common.py | 提示调用、原始输出保存和指标整理 |
+| evaluation/protocol.json | 模型名、测试集名、默认设置和论文参考值 |
+
+每题保存原始生成文本、提取答案和提示信息，支持断点续跑。scores 目录保存官方评分结果；汇总生成 paper_comparison.csv 和 paper_comparison.md，未完成的项目留空。
+
+论文：[Traceable Evidence Enhanced Visual Grounded Reasoning](https://arxiv.org/abs/2507.07999)。

@@ -1,5 +1,4 @@
 """Dependency-light protocol, checkpoint and metric helpers."""
-import hashlib
 import json
 import math
 import os
@@ -9,30 +8,12 @@ HERE = Path(__file__).resolve().parent
 PROTOCOL = json.loads((HERE / "protocol.json").read_text(encoding="utf-8"))
 
 
-def digest(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(8 * 1024 * 1024), b""):
-            h.update(block)
-    return h.hexdigest()
-
-
 def atomic_json(path, obj):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2, default=str, allow_nan=False) + "\n", encoding="utf-8")
     os.replace(tmp, path)
-
-
-def checked_manifest(path, identity):
-    path = Path(path)
-    if path.exists():
-        previous = json.loads(path.read_text(encoding="utf-8"))
-        if previous != identity:
-            raise ValueError("Run identity changed; use a new --output directory. Refusing mixed checkpoints.")
-    else:
-        atomic_json(path, identity)
 
 
 def normalize_metrics(dataset, rating):

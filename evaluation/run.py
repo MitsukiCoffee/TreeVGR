@@ -3,7 +3,6 @@
 import argparse
 import contextlib
 import datetime
-import importlib.metadata
 import json
 import os
 from pathlib import Path
@@ -13,7 +12,7 @@ import traceback
 import uuid
 
 from common import (HERE, PROTOCOL, Capture, atomic_json, build_message,
-                    checked_manifest, digest, normalize_metrics)
+                    normalize_metrics)
 
 
 def arguments(default_dataset=None):
@@ -21,7 +20,7 @@ def arguments(default_dataset=None):
     p.add_argument("--toolkit", type=Path, default=HERE / "vendor" / "VLMEvalKit")
     p.add_argument("--dataset", choices=["all", *PROTOCOL["datasets"]], default=default_dataset or "all")
     p.add_argument("--model", choices=["all", *PROTOCOL["models"]], default="all")
-    p.add_argument("--mode", choices=["prepare", "infer", "eval", "all"], default="all")
+    p.add_argument("--mode", choices=["infer", "eval", "all"], default="all")
     p.add_argument("--output", type=Path, default=HERE / "outputs")
     p.add_argument("--data-root", type=Path)
     p.add_argument("--model-path", help="Local snapshot or HF model ID; requires one --model")
@@ -31,26 +30,8 @@ def arguments(default_dataset=None):
     return p.parse_args()
 
 
-def validate_toolkit(path):
-    path = path.resolve()
-    commit = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
-    if commit != PROTOCOL["vlmevalkit_commit"]:
-        raise ValueError(f"Expected toolkit {PROTOCOL['vlmevalkit_commit']}, found {commit}")
-    changes = subprocess.check_output(["git", "-C", str(path), "status", "--porcelain", "--untracked-files=no"], text=True)
-    if changes.strip():
-        raise ValueError("Toolkit has tracked changes; use the clean pinned checkout.")
-    sys.path.insert(0, str(path))
-    return commit
-
-
-def versions():
-    result = {"python": sys.version}
-    for package in ("torch", "transformers", "qwen-vl-utils", "pandas", "numpy", "accelerate", "flash-attn"):
-        try:
-            result[package] = importlib.metadata.version(package)
-        except importlib.metadata.PackageNotFoundError:
-            result[package] = None
-    return result
+def load_toolkit(path):
+    sys.path.insert(0, str(path.resolve()))
 
 
 def run_pair(args):
@@ -59,7 +40,7 @@ def run_pair(args):
     os.environ["EVAL_FORMAT"] = "csv"
     if args.data_root:
         os.environ["LMUData"] = str(args.data_root.resolve())
-    commit = validate_toolkit(args.toolkit)
+    load_toolkit(args.toolkit)
     from vlmeval.dataset import build_dataset
     from vlmeval.config import supported_VLM
     from vlmeval.smp import dump
@@ -71,82 +52,25 @@ def run_pair(args):
     if dataset is None:
         raise ValueError(f"Dataset not registered: {dataset_name}")
     frame = dataset.data.copy()
-    required = {"index", "question", "answer", "category"}
-    if dataset_name == "TreeBench":
-        required.add("target_instances")
-    if not required.issubset(frame.columns):
-        raise ValueError(f"Missing fields: {required - set(frame.columns)}")
-    if frame['index'].isna().any() or frame['index'].astype(str).duplicated().any():
-        raise ValueError("Dataset index must be nonempty and unique")
-    if frame['answer'].isna().any():
-        raise ValueError("Dataset contains missing answers")
     total = len(frame)
-    if dataset_name == "TreeBench" and total != 405:
-        raise ValueError(f"Expected full TreeBench of 405 rows, found {total}")
     if args.limit:
         frame = frame.head(args.limit).copy()
-    dataset_path = Path(dataset.data_path)
     dataset_info = {
         "name": dataset_name, "rows": total, "selected_rows": len(frame),
-        "source_sha256": digest(dataset_path),
         "categories": {str(k): int(v) for k, v in dataset.data['category'].value_counts().items()},
     }
     output = args.output.resolve() / ("smoke" if args.limit else "full") / dataset_name / args.model
     output.mkdir(parents=True, exist_ok=True)
-    if args.mode == "prepare":
-        # Materialize images and check file headers without loading a model.
-        from PIL import Image
-        for _, row in frame.iterrows():
-            images = dataset.dump_image(row)
-            images = [images] if isinstance(images, str) else images
-            if not images:
-                raise ValueError(f"No image for {row['index']}")
-            for path in images:
-                with Image.open(path) as image:
-                    image.verify()
-        atomic_json(output / "data_check.json", dataset_info)
-        print(json.dumps(dataset_info, ensure_ascii=False, indent=2))
-        return
     factory = supported_VLM[model_name]
     model_kwargs = dict(factory.keywords)
     if args.model_path:
         model_kwargs["model_path"] = args.model_path
-    # Resolve HF snapshot revision once per job; load locally to avoid revision drift.
-    # In eval-only mode, existing identity supplies the snapshot and dependencies.
-    manifest_path = output / "manifest.json"
-    old = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
-    if args.mode == "eval":
-        if old is None:
-            raise ValueError("No completed inference manifest. Run infer/all first.")
-        if old['dataset'] != dataset_info or old['toolkit_commit'] != commit or old['seed'] != args.seed:
-            raise ValueError("Dataset/toolkit/seed differs from saved inference")
-        if args.model_path and args.model_path != old['requested_model_path']:
-            raise ValueError("Model path differs from saved inference")
-        identity = old
-    else:
-        requested_path = model_kwargs['model_path']
-        local = Path(requested_path).expanduser()
-        if local.is_dir():
-            resolved = local.resolve()
-            # Hash model files for local-directory identity, including weights.
-            files = sorted(p for p in resolved.rglob('*') if p.is_file() and '.cache' not in p.parts)
-            model_identity = {str(p.relative_to(resolved)): digest(p) for p in files}
-        else:
-            from huggingface_hub import snapshot_download
-            revision = old.get('model_revision') if old else None
-            resolved = Path(snapshot_download(requested_path, revision=revision))
-            model_identity = resolved.name
-        identity = {
-            "dataset": dataset_info, "model": model_name, "model_key": args.model,
-            "requested_model_path": requested_path, "model_revision": model_identity if isinstance(model_identity, str) else None,
-            "local_model_files": model_identity if isinstance(model_identity, dict) else None,
-            "registry_kwargs": model_kwargs, "toolkit_commit": commit,
-            "seed": args.seed, "limit": args.limit, "judge": PROTOCOL['judge'],
-            "versions": versions(), "runner_sha256": digest(Path(__file__)),
-            "common_sha256": digest(HERE / 'common.py'), "protocol_sha256": digest(HERE / 'protocol.json'),
-        }
-        checked_manifest(manifest_path, identity)
-        model_kwargs['model_path'] = str(resolved)
+    if args.mode != "eval":
+        atomic_json(output / "run_config.json", {
+            "dataset": dataset_info, "model": model_name,
+            "model_kwargs": model_kwargs, "seed": args.seed,
+            "limit": args.limit, "judge": PROTOCOL['judge'],
+        })
 
     records_dir = output / 'records'
     records_dir.mkdir(exist_ok=True)
@@ -227,8 +151,6 @@ def run_pair(args):
         'dataset': dataset_name, 'model': args.model, 'metrics': metrics,
         'rows': len(frame), 'expected_rows': total, 'complete': not args.limit and len(frame) == total,
         'scoring_path': str(score_dir), 'judge': PROTOCOL['judge'],
-        'scoring_versions': versions(), 'toolkit_commit': commit,
-        'manifest_sha256': digest(manifest_path),
     })
     print(json.dumps(metrics, ensure_ascii=False, indent=2))
 
@@ -241,8 +163,6 @@ def main(default_dataset=None):
         raise SystemExit('--model-path requires --model base or treevgr')
     datasets = list(PROTOCOL['datasets']) if args.dataset == 'all' else [args.dataset]
     models = list(PROTOCOL['models']) if args.model == 'all' else [args.model]
-    if args.mode == 'prepare':
-        models = ['base']  # dataset checks are shared
     if args.dry_run:
         print(json.dumps({'toolkit_commit': PROTOCOL['vlmevalkit_commit'],
                           'jobs': [{'dataset': PROTOCOL['datasets'][d], 'model': PROTOCOL['models'][m], 'mode': args.mode}

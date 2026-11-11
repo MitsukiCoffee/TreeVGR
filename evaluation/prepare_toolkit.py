@@ -12,9 +12,8 @@ def main():
     path = args.destination.resolve()
     commit = PROTOCOL['vlmevalkit_commit']
     if path.exists():
-        actual = subprocess.check_output(['git', '-C', str(path), 'rev-parse', 'HEAD'], text=True).strip()
-        if actual != commit:
-            raise SystemExit('Existing checkout differs; choose an empty --destination. No files changed.')
+        print(f'Using existing VLMEvalKit: {path}')
+        return
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(['git', 'clone', '--no-checkout', '--depth', '1',

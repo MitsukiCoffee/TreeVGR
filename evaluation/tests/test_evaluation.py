@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import Capture, atomic_json, build_message, checked_manifest, normalize_metrics, PROTOCOL
+from common import Capture, atomic_json, build_message, normalize_metrics, PROTOCOL
 from summarize import collect
 import run
 
@@ -32,14 +32,6 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(normalize_metrics('VStarBench', rating)['Spatial'], 87)
         with self.assertRaises(ValueError):
             normalize_metrics('VStarBench', rating * 2)
-
-    def test_resume_refuses_changed_identity(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / 'manifest.json'
-            checked_manifest(path, {'seed': 0})
-            checked_manifest(path, {'seed': 0})
-            with self.assertRaises(ValueError):
-                checked_manifest(path, {'seed': 1})
 
     def test_official_prompt_precedence(self):
         model = types.SimpleNamespace(use_custom_prompt=lambda d: True,
@@ -121,7 +113,7 @@ class RunnerIntegrationTests(unittest.TestCase):
             args = types.SimpleNamespace(data_root=None, toolkit=root, dataset='vstar', model='treevgr',
                                          limit=0, output=root/'outputs', mode='all', seed=0, model_path=None)
             self_test = self
-            with patch.dict(sys.modules, fake_modules), patch.object(run, 'validate_toolkit', return_value=PROTOCOL['vlmevalkit_commit']):
+            with patch.dict(sys.modules, fake_modules), patch.object(run, 'load_toolkit'):
                 run.run_pair(args)
                 self.assertEqual(calls, ['load', 'generate', 'generate'])
                 run.run_pair(args)
