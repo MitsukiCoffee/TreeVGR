@@ -1,0 +1,82 @@
+{
+  "vlmevalkit_commit": "c247c4d61d92be5643802aa9be5f2bc34d913d2a",
+  "models": {
+    "base": "Qwen2.5-VL-7B-Instruct",
+    "treevgr": "TreeVGR-7B"
+  },
+  "datasets": {
+    "treebench": "TreeBench",
+    "vstar": "VStarBench",
+    "hr4k": "HRBench4K",
+    "hr8k": "HRBench8K"
+  },
+  "judge": "exact_matching",
+  "seed": 0,
+  "paper": {
+    "TreeBench": {
+      "base": {
+        "Overall": 37,
+        "Attributes": 55.2,
+        "Material": 53.8,
+        "Physical State": 56.5,
+        "Object Retrieval": 62.5,
+        "OCR": 27.9,
+        "Perspective Transform": 20,
+        "Ordering": 35.1,
+        "Contact and Occlusion": 39,
+        "Spatial Containment": 44.8,
+        "Comparison": 43.2
+      },
+      "treevgr": {
+        "Overall": 50.4,
+        "mIoU": 44,
+        "Attributes": 65.5,
+        "Material": 53.8,
+        "Physical State": 82.6,
+        "Object Retrieval": 68.8,
+        "OCR": 63.3,
+        "Perspective Transform": 22.4,
+        "Ordering": 36.8,
+        "Contact and Occlusion": 61,
+        "Spatial Containment": 69,
+        "Comparison": 45.5
+      }
+    },
+    "VStarBench": {
+      "base": {
+        "Overall": 74.3,
+        "Attr": 77.4,
+        "Spatial": 69.7
+      },
+      "treevgr": {
+        "Overall": 91.1,
+        "Attr": 94,
+        "Spatial": 87
+      }
+    },
+    "HRBench4K": {
+      "base": {
+        "Overall": 72.1,
+        "Single": 88.8,
+        "Cross": 55.5
+      },
+      "treevgr": {
+        "Overall": 77.1,
+        "Single": 90.3,
+        "Cross": 64
+      }
+    },
+    "HRBench8K": {
+      "base": {
+        "Overall": 68.8,
+        "Single": 83.5,
+        "Cross": 54
+      },
+      "treevgr": {
+        "Overall": 73.1,
+        "Single": 86.5,
+        "Cross": 59.8
+      }
+    }
+  }
+}

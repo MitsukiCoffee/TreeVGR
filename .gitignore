@@ -1,0 +1,8 @@
+
+# Reproduction artifacts
+__pycache__/
+*.py[cod]
+/evaluation/outputs/
+/evaluation/vendor/
+/evaluation/data/
+/evaluation/models/

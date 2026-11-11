@@ -107,3 +107,7 @@ We would like to express our sincere appreciation to the following projects:
 - [SA-1B](https://ai.meta.com/datasets/segment-anything/): The image source of our TreeBench.
 - [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory): The SFT codebase we utilized.
 - [EasyR1](https://github.com/hiyouga/EasyR1): The RL codebase we utilized.
+
+## Table 2 / Table 3 reproduction
+
+For Qwen2.5-VL-7B-Instruct versus TreeVGR-7B on TreeBench, VStarBench, HRBench4K and HRBench8K, see [the evaluation guide](evaluation/README.zh-CN.md). The scripts use pinned VLMEvalKit adapters, save resumable per-sample outputs, and compare scores with the paper.
