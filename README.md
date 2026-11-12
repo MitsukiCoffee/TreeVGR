@@ -1,4 +1,4 @@
-# 复现了什么
+# TreeVGA 复现
 
 本仓库基于 [作者源码](https://github.com/Haochen-Wang409/TreeVGR)，**复现论文表 2、表 3 中 Qwen2.5-VL-7B-Instruct 与 TreeVGR-7B 的结果**。
 
