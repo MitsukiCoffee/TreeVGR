@@ -1,6 +1,6 @@
-# TreeVGR 评测复现
+# 复现了什么
 
-本仓库基于 [作者源码](https://github.com/Haochen-Wang409/TreeVGR)，复现论文表 2、表 3 中 Qwen2.5-VL-7B-Instruct 与 TreeVGR-7B 的结果。
+本仓库基于 [作者源码](https://github.com/Haochen-Wang409/TreeVGR)，**复现论文表 2、表 3 中 Qwen2.5-VL-7B-Instruct 与 TreeVGR-7B 的结果**。
 
 ## 原作者示例与论文的差异
 
@@ -19,7 +19,7 @@
 | HR-Bench-4K | 72.1 | 77.1 | Single、Cross |
 | HR-Bench-8K | 68.8 | 73.1 | Single、Cross |
 
-完整参考分数位于 evaluation/protocol.json。V* 和 HR-Bench 使用公开的 exact_matching 评分路径。
+其中V* 和 HR-Bench 使用公开的 exact_matching 评分路径。
 
 ## 服务器快速运行
 
@@ -75,4 +75,4 @@ python evaluation/eval_hrbench_8k.py
 
 每题保存原始生成文本、提取答案和提示信息，支持断点续跑。scores 目录保存官方评分结果；汇总生成 paper_comparison.csv 和 paper_comparison.md，未完成的项目留空。
 
-论文：[Traceable Evidence Enhanced Visual Grounded Reasoning](https://arxiv.org/abs/2507.07999)。
+论文原地址：[Traceable Evidence Enhanced Visual Grounded Reasoning](https://arxiv.org/abs/2507.07999)。
